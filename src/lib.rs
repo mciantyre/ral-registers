@@ -292,6 +292,26 @@ macro_rules! write_reg {
         use $periph::{*};
         (*$instance).$reg.write($value);
     }};
+    //
+    // Register array
+    //
+    ( $periph:path, $instance:expr, $reg:ident [ $offset:expr ], $( $field:ident : $value:expr ),+ ) => {{
+        #[allow(unused_imports)]
+        use $periph::{*};
+        #[allow(unused_imports)]
+        (*$instance).$reg[$offset].write(
+            $({
+                use $periph::{$reg::$field::{W::*, RW::*}};
+                ($value << { use $periph::{$reg::$field::offset}; offset })
+                    & { use $periph::{$reg::$field::mask}; mask }
+            }) | *
+        );
+    }};
+    ( $periph:path, $instance:expr, $reg:ident [ $offset:expr ], $value:expr ) => {{
+        #[allow(unused_imports)]
+        use $periph::{*};
+        (*$instance).$reg[$offset].write($value);
+    }};
 }
 
 /// Modify a RWRegister or UnsafeRWRegister.
@@ -426,6 +446,27 @@ macro_rules! modify_reg {
         use $periph::{*};
         (*$instance).$reg.write($fn((*$instance).$reg.read()));
     }};
+    //
+    // Register array
+    //
+    ( $periph:path, $instance:expr, $reg:ident [ $offset:expr ], $( $field:ident : $value:expr ),+ ) => {{
+        #[allow(unused_imports)]
+        use $periph::{*};
+        #[allow(unused_imports)]
+        (*$instance).$reg[$offset].write(
+            ((*$instance).$reg[$offset].read() & !( $({ use $periph::{$reg::$field::mask}; mask }) | * ))
+            | $({
+                use $periph::{$reg::$field::{W::*, RW::*}};
+                ($value << { use $periph::{$reg::$field::offset}; offset })
+                    & { use $periph::{$reg::$field::mask}; mask }
+            }) | *
+        );
+    }};
+    ( $periph:path, $instance:expr, $reg:ident [ $offset:expr ], $fn:expr ) => {{
+        #[allow(unused_imports)]
+        use $periph::{*};
+        (*$instance).$reg[$offset].write($fn((*$instance).$reg[$offset].read()));
+    }};
 }
 
 /// Read the value from a RORegister, RWRegister, UnsafeRORegister, or UnsafeRWRegister.
@@ -549,6 +590,31 @@ macro_rules! read_reg {
         use $periph::{*};
         ((*$instance).$reg.read())
     }};
+    //
+    // Register array
+    //
+    ( $periph:path, $instance:expr, $reg:ident [ $offset:expr ], $( $field:ident ),+ ) => {{
+        #[allow(unused_imports)]
+        use $periph::{*};
+        let val = ((*$instance).$reg[$offset].read());
+        ( $({
+            #[allow(unused_imports)]
+            use $periph::{$reg::$field::{mask, offset, R::*, RW::*}};
+            (val & mask) >> offset
+        }) , *)
+    }};
+    ( $periph:path, $instance:expr, $reg:ident [ $offset:expr ], $field:ident $($cmp:tt)* ) => {{
+        #[allow(unused_imports)]
+        use $periph::{*};
+        #[allow(unused_imports)]
+        use $periph::{$reg::$field::{mask, offset, R::*, RW::*}};
+        (((*$instance).$reg[$offset].read() & mask) >> offset) $($cmp)*
+    }};
+    ( $periph:path, $instance:expr, $reg:ident [ $offset:expr ] ) => {{
+        #[allow(unused_imports)]
+        use $periph::{*};
+        ((*$instance).$reg[$offset].read())
+    }};
 }
 
 /// Reset a RWRegister, UnsafeRWRegister, WORegister, or UnsafeWORegister to its reset value.
@@ -639,5 +705,24 @@ macro_rules! reset_reg {
         use $periph::{*};
         use $periph::{$instancemod::{reset}};
         (*$instance).$reg.write(reset.$reg);
+    }};
+    //
+    // Register array
+    //
+    ( $periph:path, $instance:expr, $instancemod:path, $reg:ident [ $offset:expr ], $( $field:ident ),+ ) => {{
+        #[allow(unused_imports)]
+        use $periph::{*};
+        use $periph::{$instancemod::{reset}};
+        #[allow(unused_imports)]
+        (*$instance).$reg[$offset].write({
+            let resetmask: u32 = $({ use $periph::{$reg::$field::mask}; mask }) | *;
+            ((*$instance).$reg[$offset].read() & !resetmask) | (reset.$reg & resetmask)
+        });
+    }};
+    ( $periph:path, $instance:expr, $instancemod:path, $reg:ident [ $offset:expr ] ) => {{
+        #[allow(unused_imports)]
+        use $periph::{*};
+        use $periph::{$instancemod::{reset}};
+        (*$instance).$reg[$offset].write(reset.$reg);
     }};
 }
