@@ -275,43 +275,22 @@ impl<T: Copy> UnsafeWORegister<T> {
 /// and the macro brings such constants into scope and then dereferences the provided reference.
 #[macro_export]
 macro_rules! write_reg {
-    //
-    // Scalar register
-    //
-    ( $periph:path, $instance:expr, $reg:ident, $( $field:ident : $value:expr ),+ ) => {{
-        $crate::write_reg!(@impl $periph, (*$instance).$reg, $reg, $( $field : $value ),* )
-    }};
-    ( $periph:path, $instance:expr, $reg:ident, $value:expr ) => {{
-        $crate::write_reg!(@impl $periph, (*$instance).$reg, $value)
-    }};
-    //
-    // Register array
-    //
-    ( $periph:path, $instance:expr, $reg:ident [ $offset:expr ], $( $field:ident : $value:expr ),+ ) => {{
-        $crate::write_reg!(@impl $periph, (*$instance).$reg[$offset], $reg, $( $field : $value ),* )
-    }};
-    ( $periph:path, $instance:expr, $reg:ident [ $offset:expr ], $value:expr ) => {{
-        $crate::write_reg!(@impl $periph, (*$instance).$reg[$offset], $value)
-    }};
-    //
-    // Implementation details
-    //
-    ( @impl $periph:path, $reg_inst:expr, $reg_mod:ident, $( $field:ident : $value:expr ),+ ) => {{
+    ( $periph:path, $instance:expr, $reg:ident $([$offset:expr])*, $( $field:ident : $value:expr ),+ ) => {{
         #[allow(unused_imports)]
         use $periph::{*};
         #[allow(unused_imports)]
-        $reg_inst.write(
+        (*$instance).$reg $([$offset])*.write(
             $({
-                use $periph::{$reg_mod::$field::{W::*, RW::*}};
-                ($value << { use $periph::{$reg_mod::$field::offset}; offset })
-                    & { use $periph::{$reg_mod::$field::mask}; mask }
+                use $periph::{$reg::$field::{W::*, RW::*}};
+                ($value << { use $periph::{$reg::$field::offset}; offset })
+                    & { use $periph::{$reg::$field::mask}; mask }
             }) | *
         );
     }};
-    ( @impl $periph:path, $reg:expr, $value:expr ) => {{
+    ( $periph:path, $instance:expr, $reg:ident $([$offset:expr])*, $value:expr ) => {{
         #[allow(unused_imports)]
         use $periph::{*};
-        $reg.write($value);
+        (*$instance).$reg $([$offset])*.write($value);
     }};
 }
 
@@ -429,44 +408,23 @@ macro_rules! write_reg {
 /// and the macro brings such constants into scope and then dereferences the provided reference.
 #[macro_export]
 macro_rules! modify_reg {
-    //
-    // Scalar register
-    //
-    ( $periph:path, $instance:expr, $reg:ident, $( $field:ident : $value:expr ),+ ) => {{
-        $crate::modify_reg!(@impl $periph, (*$instance).$reg, $reg, $( $field : $value ),*)
-    }};
-    ( $periph:path, $instance:expr, $reg:ident, $fn:expr ) => {{
-        $crate::modify_reg!(@impl $periph, (*$instance).$reg, $fn)
-    }};
-    //
-    // Register array
-    //
-    ( $periph:path, $instance:expr, $reg:ident [ $offset:expr ], $( $field:ident : $value:expr ),+ ) => {{
-        $crate::modify_reg!(@impl $periph, (*$instance).$reg[$offset], $reg, $( $field : $value),*)
-    }};
-    ( $periph:path, $instance:expr, $reg:ident [ $offset:expr ], $fn:expr ) => {{
-        $crate::modify_reg!(@impl $periph, (*$instance).$reg[$offset], $fn)
-    }};
-    //
-    // Implementation details
-    //
-    ( @impl $periph:path, $reg:expr, $reg_mod:ident, $( $field:ident : $value:expr ),+ ) => {{
+    ( $periph:path, $instance:expr, $reg:ident $([$offset:expr])*, $( $field:ident : $value:expr ),+ ) => {{
         #[allow(unused_imports)]
         use $periph::{*};
         #[allow(unused_imports)]
-        $reg.write(
-            ($reg.read() & !( $({ use $periph::{$reg_mod::$field::mask}; mask }) | * ))
+        (*$instance).$reg $([$offset])*.write(
+            ((*$instance).$reg $([$offset])*.read() & !( $({ use $periph::{$reg::$field::mask}; mask }) | * ))
             | $({
-                use $periph::{$reg_mod::$field::{W::*, RW::*}};
-                ($value << { use $periph::{$reg_mod::$field::offset}; offset })
-                    & { use $periph::{$reg_mod::$field::mask}; mask }
+                use $periph::{$reg::$field::{W::*, RW::*}};
+                ($value << { use $periph::{$reg::$field::offset}; offset })
+                    & { use $periph::{$reg::$field::mask}; mask }
             }) | *
         );
     }};
-    ( @impl $periph:path, $reg:expr, $fn:expr ) => {{
+    ( $periph:path, $instance:expr, $reg:ident $([$offset:expr])*, $fn:expr ) => {{
         #[allow(unused_imports)]
         use $periph::{*};
-        $reg.write($fn($reg.read()));
+        (*$instance).$reg $([$offset])*.write($fn((*$instance).$reg $([$offset])*.read()));
     }};
 }
 
@@ -569,54 +527,27 @@ macro_rules! modify_reg {
 /// and the macro brings such constants into scope and then dereferences the provided reference.
 #[macro_export]
 macro_rules! read_reg {
-    //
-    // Scalar register
-    //
-    ( $periph:path, $instance:expr, $reg:ident, $( $field:ident ),+ ) => {{
-        $crate::read_reg!(@impl $periph, (*$instance).$reg, $reg, $( $field ),*)
-    }};
-    ( $periph:path, $instance:expr, $reg:ident, $field:ident $($cmp:tt)* ) => {{
-        $crate::read_reg!(@impl $periph, (*$instance).$reg, $reg, $field $($cmp)*)
-    }};
-    ( $periph:path, $instance:expr, $reg:ident ) => {{
-        $crate::read_reg!(@impl $periph, (*$instance).$reg)
-    }};
-    //
-    // Register array
-    //
-    ( $periph:path, $instance:expr, $reg:ident [ $offset:expr ], $( $field:ident ),+ ) => {{
-        $crate::read_reg!(@impl $periph, (*$instance).$reg[$offset], $reg, $( $field ),*)
-    }};
-    ( $periph:path, $instance:expr, $reg:ident [ $offset:expr ], $field:ident $($cmp:tt)* ) => {{
-        $crate::read_reg!(@impl $periph, (*$instance).$reg[$offset], $reg, $field $($cmp)*)
-    }};
-    ( $periph:path, $instance:expr, $reg:ident [ $offset:expr ] ) => {{
-        $crate::read_reg!(@impl $periph, (*$instance).$reg[$offset])
-    }};
-    //
-    // Implementation details
-    //
-    ( @impl $periph:path, $reg_inst:expr, $reg_mod:ident, $( $field:ident ),+ ) => {{
+    ( $periph:path, $instance:expr, $reg:ident $([$offset:expr])*, $( $field:ident ),+ ) => {{
         #[allow(unused_imports)]
         use $periph::{*};
-        let val = ($reg_inst.read());
+        let val = ((*$instance).$reg $([$offset])*.read());
         ( $({
             #[allow(unused_imports)]
-            use $periph::{$reg_mod::$field::{mask, offset, R::*, RW::*}};
+            use $periph::{$reg::$field::{mask, offset, R::*, RW::*}};
             (val & mask) >> offset
         }) , *)
     }};
-    ( @impl $periph:path, $reg_inst:expr, $reg_mod:ident, $field:ident $($cmp:tt)* ) => {{
+    ( $periph:path, $instance:expr, $reg:ident $([$offset:expr])*, $field:ident $($cmp:tt)* ) => {{
         #[allow(unused_imports)]
         use $periph::{*};
         #[allow(unused_imports)]
-        use $periph::{$reg_mod::$field::{mask, offset, R::*, RW::*}};
-        (($reg_inst.read() & mask) >> offset) $($cmp)*
+        use $periph::{$reg::$field::{mask, offset, R::*, RW::*}};
+        (((*$instance).$reg $([$offset])*.read() & mask) >> offset) $($cmp)*
     }};
-    ( @impl $periph:path, $reg_inst:expr ) => {{
+    ( $periph:path, $instance:expr, $reg:ident $([$offset:expr])* ) => {{
         #[allow(unused_imports)]
         use $periph::{*};
-        ($reg_inst.read())
+        ((*$instance).$reg $([$offset])*.read())
     }};
 }
 
@@ -693,41 +624,20 @@ macro_rules! read_reg {
 /// `GPIOA` they are not the same thing.
 #[macro_export]
 macro_rules! reset_reg {
-    //
-    // Scalar register
-    //
-    ( $periph:path, $instance:expr, $instancemod:path, $reg:ident, $( $field:ident ),+ ) => {{
-        $crate::reset_reg!(@impl $periph, (*$instance).$reg, $instancemod, $reg, $( $field ),*)
-    }};
-    ( $periph:path, $instance:expr, $instancemod:path, $reg:ident ) => {{
-        $crate::reset_reg!(@impl $periph, (*$instance).$reg, $instancemod, $reg)
-    }};
-    //
-    // Register array
-    //
-    ( $periph:path, $instance:expr, $instancemod:path, $reg:ident [ $offset:expr ], $( $field:ident ),+ ) => {{
-        $crate::reset_reg!(@impl $periph, (*$instance).$reg[$offset], $instancemod, $reg, $( $field ),*)
-    }};
-    ( $periph:path, $instance:expr, $instancemod:path, $reg:ident [ $offset:expr ] ) => {{
-        $crate::reset_reg!(@impl $periph, (*$instance).$reg[$offset], $instancemod, $reg)
-    }};
-    //
-    // Implementation details
-    //
-    ( @impl $periph:path, $reg_inst:expr, $instancemod:path, $reg_ident:ident, $( $field:ident ),+ ) => {{
+    ( $periph:path, $instance:expr, $instancemod:path, $reg:ident $([$offset:expr])*, $( $field:ident ),+ ) => {{
         #[allow(unused_imports)]
         use $periph::{*};
         use $periph::{$instancemod::{reset}};
         #[allow(unused_imports)]
-        $reg_inst.write({
-            let resetmask: u32 = $({ use $periph::{$reg_ident::$field::mask}; mask }) | *;
-            ($reg_inst.read() & !resetmask) | (reset.$reg_ident & resetmask)
+        (*$instance).$reg $([$offset])*.write({
+            let resetmask: u32 = $({ use $periph::{$reg::$field::mask}; mask }) | *;
+            ((*$instance).$reg $([$offset])*.read() & !resetmask) | (reset.$reg & resetmask)
         });
     }};
-    ( @impl $periph:path, $reg_inst:expr, $instancemod:path, $reg:ident ) => {{
+    ( $periph:path, $instance:expr, $instancemod:path, $reg:ident $([$offset:expr])*) => {{
         #[allow(unused_imports)]
         use $periph::{*};
         use $periph::{$instancemod::{reset}};
-        $reg_inst.write(reset.$reg);
+        (*$instance).$reg $([$offset])*.write(reset.$reg);
     }};
 }
